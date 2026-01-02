@@ -1,0 +1,23 @@
+[
+  {
+    "id": 1,
+    "projectId": 1,
+    "name": "Requirements",
+    "duration": 5,
+    "predecessors": []
+  },
+  {
+    "id": 2,
+    "projectId": 1,
+    "name": "Design",
+    "duration": 3,
+    "predecessors": [1]
+  },
+  {
+    "id": 3,
+    "projectId": 1,
+    "name": "Development",
+    "duration": 7,
+    "predecessors": [2]
+  }
+]
