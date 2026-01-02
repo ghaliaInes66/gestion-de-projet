@@ -11,10 +11,9 @@ const taskSchema = new mongoose.Schema({
     default: 1,
     min: [1, "duration must be at least 1 day"],
   },
-  status: {
-    type: String,
-    enum: ["not started", "in progress", "completed"],
-    default: "not started",
+  predeceseur: {
+    type: [String],
+    default: ["none"],
   },
   createdAt: { type: Date, default: Date.now },
 });
