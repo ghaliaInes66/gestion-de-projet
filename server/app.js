@@ -2,6 +2,7 @@ const express = require("express");
 const mongoose = require("mongoose");
 const UserRouter = require("./router/UserRouter");
 const ProjectRouter = require("./router/ProjectRouter");
+const TaskRouter = require("./router/TaskRouter");
 const app = express();
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
@@ -25,6 +26,7 @@ mongoose
   });
 app.use("/api/users", UserRouter);
 app.use("/api/projects", ProjectRouter);
+app.use("/api/tasks", TaskRouter);
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
