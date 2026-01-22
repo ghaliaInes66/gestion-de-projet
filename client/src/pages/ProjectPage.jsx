@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { getTasksByProject, createTask, updateTask, deleteTask } from "../api/fakeApi";
+import { getTasks, createTask, updateTask, deleteTask } from "../api/taskApi";
 import TaskTable from "../components/TaskTable";
 import TaskForm from "../components/TaskForm";
 import GanttChart from "../components/GanttChart";
@@ -14,41 +14,89 @@ const ProjectPage = ({ project, goBack }) => {
   const [loading, setLoading] = useState(true);
 
   const loadTasks = async () => {
+    if (!project) {
+      setLoading(false);
+      return;
+    }
+
+    // Use _id if available (MongoDB), otherwise use id
+    const projectId = project._id || project.id;
+    
+    if (!projectId) {
+      console.error("No project ID available");
+      setLoading(false);
+      return;
+    }
+
     setLoading(true);
     try {
-      const data = await getTasksByProject(project.id);
-      setTasks(data);
+      const response = await getTasks(projectId);
+      // Map backend fields to frontend format
+      const mappedTasks = response.tasks.map(task => ({
+        id: task._id || task.id,
+        projectId: task.project || task.projectId,
+        name: task.title,
+        duration: task.duree,
+        predecessors: task.predeceseur || []
+      }));
+      setTasks(mappedTasks);
     } catch (error) {
       console.error("Error loading tasks:", error);
+      alert("Failed to load tasks");
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    loadTasks();
-  }, [project]);
+    if (project) {
+      loadTasks();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [project?._id || project?.id]);
 
   const handleCreate = async (taskData) => {
+    if (!project) {
+      alert("No project selected");
+      return;
+    }
+
+    const projectId = project._id || project.id;
+    
     try {
-      await createTask({ ...taskData, projectId: project.id });
+      setLoading(true);
+      await createTask({
+        projectId: projectId,
+        title: taskData.name,
+        duree: taskData.duration,
+        predeceseur: taskData.predecessors || []
+      });
       await loadTasks();
       setShowForm(false);
     } catch (error) {
       console.error("Error creating task:", error);
       alert("Failed to create task");
+    } finally {
+      setLoading(false);
     }
   };
 
   const handleUpdate = async (id, taskData) => {
     try {
-      await updateTask(id, taskData);
+      setLoading(true);
+      await updateTask(id, {
+        title: taskData.name,
+        duree: taskData.duration,
+        predeceseur: taskData.predecessors || []
+      });
       await loadTasks();
       setEditingTask(null);
       setShowForm(false);
     } catch (error) {
       console.error("Error updating task:", error);
       alert("Failed to update task");
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -57,11 +105,14 @@ const ProjectPage = ({ project, goBack }) => {
       return;
     }
     try {
+      setLoading(true);
       await deleteTask(id);
       await loadTasks();
     } catch (error) {
       console.error("Error deleting task:", error);
       alert("Failed to delete task");
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -174,7 +225,7 @@ const ProjectPage = ({ project, goBack }) => {
                 <TaskForm
                   task={editingTask}
                   projectTasks={tasks}
-                  onSubmit={editingTask ? (data) => handleUpdate(editingTask.id, data) : handleCreate}
+                  onSubmit={editingTask ? (data) => handleUpdate(editingTask.id || editingTask._id, data) : handleCreate}
                   onCancel={handleFormClose}
                 />
               </div>

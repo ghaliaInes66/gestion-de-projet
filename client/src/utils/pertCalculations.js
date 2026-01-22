@@ -1,175 +1,111 @@
-// Forward pass: Calculate Early Start and Early Finish
+// utils/pertCalculations.js
+
+// -------- Forward pass (ES, EF) --------
 const forwardPass = (tasks) => {
   const result = {};
-  const taskMap = {};
-  
-  // Create a map for quick lookup
-  tasks.forEach(task => {
-    taskMap[task.id] = { ...task };
-  });
+  const visited = new Set();
 
-  // Topological sort to process tasks in order
-  const processed = new Set();
-  const processTask = (taskId) => {
-    if (processed.has(taskId)) return;
-    
-    const task = taskMap[taskId];
-    if (!task) return;
+  const getTask = (id) => tasks.find(t => t.id === id);
 
-    // Process all predecessors first
+  const dfs = (taskId) => {
+    if (visited.has(taskId)) return;
+    const task = getTask(taskId);
+
+    let ES = 0;
     if (task.predecessors && task.predecessors.length > 0) {
-      task.predecessors.forEach(predId => {
-        if (!processed.has(predId)) {
-          processTask(predId);
-        }
+      task.predecessors.forEach(p => {
+        if (!visited.has(p)) dfs(p);
+        ES = Math.max(ES, result[p].EF);
       });
     }
 
-    // Calculate Early Start and Early Finish
-    const predEarlyFinishes = (task.predecessors || [])
-      .map(predId => result[predId]?.earlyFinish || 0);
-    
-    const earlyStart = predEarlyFinishes.length > 0 
-      ? Math.max(...predEarlyFinishes) 
-      : 0;
-    const earlyFinish = earlyStart + task.duration;
-
-    result[taskId] = {
-      ...task,
-      earlyStart,
-      earlyFinish
-    };
-
-    processed.add(taskId);
+    const EF = ES + task.duration;
+    result[taskId] = { ...task, ES, EF };
+    visited.add(taskId);
   };
 
-  // Process all tasks
-  tasks.forEach(task => processTask(task.id));
-
-  return { result, taskMap };
-};
-
-// Backward pass: Calculate Late Start and Late Finish
-const backwardPass = (tasks, forwardResult, projectDuration) => {
-  const result = { ...forwardResult };
-  const taskMap = {};
-  
-  tasks.forEach(task => {
-    taskMap[task.id] = task;
-  });
-
-  // Find tasks that have no successors (end tasks)
-  const endTasks = tasks.filter(task => {
-    return !tasks.some(t => 
-      t.predecessors && t.predecessors.includes(task.id)
-    );
-  });
-
-  // Process tasks in reverse order
-  const processed = new Set();
-  const processTask = (taskId) => {
-    if (processed.has(taskId)) return;
-    
-    const task = taskMap[taskId];
-    if (!task || !result[taskId]) return;
-
-    // Find all tasks that have this task as a predecessor
-    const successors = tasks.filter(t => 
-      t.predecessors && t.predecessors.includes(taskId)
-    );
-
-    if (successors.length === 0) {
-      // End task: Late Finish = Project Duration
-      result[taskId].lateFinish = projectDuration;
-      result[taskId].lateStart = projectDuration - task.duration;
-    } else {
-      // Late Finish = min of successors' Late Start
-      const successorLateStarts = successors
-        .map(succId => {
-          if (!processed.has(succId)) {
-            processTask(succId);
-          }
-          return result[succId]?.lateStart;
-        })
-        .filter(val => val !== undefined);
-      
-      const lateFinish = successorLateStarts.length > 0
-        ? Math.min(...successorLateStarts)
-        : projectDuration;
-      
-      result[taskId].lateFinish = lateFinish;
-      result[taskId].lateStart = lateFinish - task.duration;
-    }
-
-    processed.add(taskId);
-  };
-
-  // Process all tasks starting from end tasks
-  endTasks.forEach(task => processTask(task.id));
-  
-  // Process remaining tasks
-  tasks.forEach(task => processTask(task.id));
-
+  tasks.forEach(t => dfs(t.id));
   return result;
 };
 
-// Calculate critical path
-const calculateCriticalPath = (tasks, pertData) => {
-  const criticalTasks = [];
-  
-  tasks.forEach(task => {
-    const data = pertData[task.id];
-    if (data) {
-      const slack = data.lateStart - data.earlyStart;
-      const isCritical = slack === 0;
-      
-      pertData[task.id] = {
-        ...data,
-        slack,
-        isCritical
-      };
+// -------- Backward pass (LS, LF) --------
+const backwardPass = (tasks, forwardData, projectDuration) => {
+  const result = { ...forwardData };
 
-      if (isCritical) {
-        criticalTasks.push(task.id);
-      }
+  const getSuccessors = (id) =>
+    tasks.filter(t => t.predecessors && t.predecessors.includes(id));
+
+  const visited = new Set();
+
+  const dfs = (taskId) => {
+    if (visited.has(taskId)) return;
+    const successors = getSuccessors(taskId);
+
+    let LF;
+    if (successors.length === 0) {
+      LF = projectDuration;
+    } else {
+      LF = Math.min(...successors.map(s => {
+        if (!visited.has(s.id)) dfs(s.id);
+        return result[s.id].LS;
+      }));
     }
+
+    const LS = LF - result[taskId].duration;
+    result[taskId].LF = LF;
+    result[taskId].LS = LS;
+    visited.add(taskId);
+  };
+
+  tasks.forEach(t => dfs(t.id));
+  return result;
+};
+
+// -------- Marges --------
+const calculateMargins = (tasks, data) => {
+  const getSuccessors = (id) =>
+    tasks.filter(t => t.predecessors && t.predecessors.includes(id));
+
+  tasks.forEach(task => {
+    const d = data[task.id];
+
+    const MT = d.LS - d.ES; // Marge Totale
+
+    const successors = getSuccessors(task.id);
+    let ML;
+    if (successors.length === 0) {
+      ML = MT;
+    } else {
+      const minES = Math.min(...successors.map(s => data[s.id].ES));
+      ML = minES - d.EF;
+    }
+
+    d.MT = MT;
+    d.ML = ML;
+    d.isCritical = MT === 0;
   });
 
-  return criticalTasks;
+  return data;
 };
 
+// -------- Main --------
 export const calculatePERT = (tasks) => {
-  if (!tasks || tasks.length === 0) {
-    return {};
-  }
+  if (!tasks || tasks.length === 0) return {};
 
-  // Forward pass
-  const { result: forwardResult } = forwardPass(tasks);
-  
-  // Calculate project duration (max Early Finish)
-  const projectDuration = Math.max(
-    ...Object.values(forwardResult).map(t => t.earlyFinish || 0)
-  );
+  const forward = forwardPass(tasks);
+  const projectDuration = Math.max(...Object.values(forward).map(t => t.EF));
+  const backward = backwardPass(tasks, forward, projectDuration);
+  const finalData = calculateMargins(tasks, backward);
 
-  // Backward pass
-  const pertData = backwardPass(tasks, forwardResult, projectDuration);
-
-  // Calculate critical path
-  const criticalPath = calculateCriticalPath(tasks, pertData);
-
-  // Add project duration and critical path info
-  pertData._projectDuration = projectDuration;
-  pertData._criticalPath = criticalPath;
-
-  return pertData;
+  return {
+    tasks: finalData,
+    projectDuration
+  };
 };
 
-// Get total project duration
-export const getProjectDuration = (pertData) => {
-  return pertData._projectDuration || 0;
-};
+export const getProjectDuration = (pert) => pert.projectDuration;
 
-// Get critical path tasks
-export const getCriticalPath = (pertData) => {
-  return pertData._criticalPath || [];
-};
+export const getCriticalPath = (pert) =>
+  Object.values(pert.tasks)
+    .filter(t => t.isCritical)
+    .map(t => t.name);

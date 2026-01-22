@@ -1,22 +1,37 @@
 import { useEffect, useState } from "react";
-import { getProjects, createProject, updateProject, deleteProject } from "../api/fakeApi";
+import { getProjects, createProject, updateProject, deleteProject } from "../api/projectApi";
 import ProjectCard from "../components/ProjectCard";
 import ProjectForm from "../components/ProjectForm";
-import { Plus, LogOut } from "lucide-react";
+import { Plus, LogOut, User } from "lucide-react";
+import { useAuth } from "../contexts/AuthContext";
 
-const HomePage = ({ setSelectedProject, onLogout }) => {
+const HomePage = ({ userId, setSelectedProject, onLogout }) => {
+  const { currentUser } = useAuth();
   const [projects, setProjects] = useState([]);
   const [showForm, setShowForm] = useState(false);
   const [editingProject, setEditingProject] = useState(null);
   const [loading, setLoading] = useState(true);
 
   const loadProjects = async () => {
+    if (!userId) {
+      console.error("No user ID available");
+      setLoading(false);
+      return;
+    }
+
     setLoading(true);
     try {
-      const data = await getProjects();
-      setProjects(data);
+      const response = await getProjects(userId);
+      // Map backend fields to frontend format
+      const mappedProjects = response.projects.map(project => ({
+        id: project._id || project.id,
+        name: project.title,
+        description: project.description
+      }));
+      setProjects(mappedProjects);
     } catch (error) {
       console.error("Error loading projects:", error);
+      alert("Failed to load projects");
     } finally {
       setLoading(false);
     }
@@ -24,27 +39,45 @@ const HomePage = ({ setSelectedProject, onLogout }) => {
 
   useEffect(() => {
     loadProjects();
-  }, []);
+  }, [userId]);
 
   const handleCreate = async (projectData) => {
+    if (!userId) {
+      alert("User not logged in");
+      return;
+    }
+
     try {
-      await createProject(projectData);
+      setLoading(true);
+      await createProject({
+        userId: userId,
+        title: projectData.name,
+        description: projectData.description || ""
+      });
       await loadProjects();
       setShowForm(false);
     } catch (error) {
       console.error("Error creating project:", error);
       alert("Failed to create project");
+    } finally {
+      setLoading(false);
     }
   };
 
   const handleUpdate = async (id, projectData) => {
     try {
-      await updateProject(id, projectData);
+      setLoading(true);
+      await updateProject(id, {
+        title: projectData.name,
+        description: projectData.description || ""
+      });
       await loadProjects();
       setEditingProject(null);
     } catch (error) {
       console.error("Error updating project:", error);
       alert("Failed to update project");
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -53,11 +86,14 @@ const HomePage = ({ setSelectedProject, onLogout }) => {
       return;
     }
     try {
+      setLoading(true);
       await deleteProject(id);
       await loadProjects();
     } catch (error) {
       console.error("Error deleting project:", error);
       alert("Failed to delete project");
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -88,7 +124,23 @@ const HomePage = ({ setSelectedProject, onLogout }) => {
             <h1 className="text-5xl font-black text-gray-900 mb-2">My Projects</h1>
             <p className="text-gray-600 text-lg">Manage your projects and tasks</p>
           </div>
-          <div className="flex gap-4">
+          <div className="flex items-center gap-4">
+            {/* User Profile */}
+            {currentUser && (
+              <div className="flex items-center gap-3 bg-white/80 backdrop-blur-sm border-2 border-amber-200 rounded-full px-4 py-2 shadow-lg">
+                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-yellow-300 to-orange-300 flex items-center justify-center border-2 border-amber-400">
+                  <User className="w-5 h-5 text-amber-900" />
+                </div>
+                <div className="flex flex-col">
+                  <span className="text-sm font-bold text-gray-900">
+                    {currentUser.name || "User"}
+                  </span>
+                  <span className="text-xs text-gray-600">
+                    {currentUser.email || ""}
+                  </span>
+                </div>
+              </div>
+            )}
             <button
               onClick={() => setShowForm(true)}
               className="relative group"
@@ -131,11 +183,11 @@ const HomePage = ({ setSelectedProject, onLogout }) => {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {projects.map(project => (
               <ProjectCard
-                key={project.id}
+                key={project.id || project._id}
                 project={project}
                 onOpen={() => setSelectedProject(project)}
                 onEdit={() => handleEdit(project)}
-                onDelete={() => handleDelete(project.id)}
+                onDelete={() => handleDelete(project.id || project._id)}
               />
             ))}
           </div>
@@ -149,7 +201,7 @@ const HomePage = ({ setSelectedProject, onLogout }) => {
               <div className="relative bg-white/90 backdrop-blur-xl rounded-[2.5rem] shadow-2xl p-8 border border-amber-100/50">
                 <ProjectForm
                   project={editingProject}
-                  onSubmit={editingProject ? (data) => handleUpdate(editingProject.id, data) : handleCreate}
+                  onSubmit={editingProject ? (data) => handleUpdate(editingProject.id || editingProject._id, data) : handleCreate}
                   onCancel={handleFormClose}
                 />
               </div>

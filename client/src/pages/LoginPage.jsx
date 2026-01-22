@@ -1,9 +1,13 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { Check, ArrowRight, Sparkles, Zap, Users, Clock, Menu, X, Star, CheckCircle2 } from 'lucide-react';
+import { signup, login } from '../api/userApi';
 
 const LoginPage = ({ onLogin }) => {
+  // onLogin now receives the user object: onLogin(user)
   const [currentPage, setCurrentPage] = useState('landing');
   const [menuOpen, setMenuOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [errors, setErrors] = useState({});
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -13,18 +17,98 @@ const LoginPage = ({ onLogin }) => {
     agree: false
   });
 
-  const handleInputChange = (e) => {
+  const handleInputChange = useCallback((e) => {
     const { name, value, type, checked } = e.target;
     setFormData(prev => ({
       ...prev,
       [name]: type === 'checkbox' ? checked : value
     }));
+    // Clear error for this field when user starts typing
+    setErrors(prev => {
+      if (prev[name]) {
+        return { ...prev, [name]: '' };
+      }
+      return prev;
+    });
+  }, []);
+
+  // Handle signup form submission
+  const handleSignup = async (e) => {
+    e.preventDefault();
+    setErrors({});
+    setLoading(true);
+
+    // Client-side validation
+    if (formData.password !== formData.confirmPassword) {
+      setErrors({ confirmPassword: 'Passwords do not match' });
+      setLoading(false);
+      return;
+    }
+
+    if (!formData.agree) {
+      setErrors({ agree: 'You must agree to the terms and conditions' });
+      setLoading(false);
+      return;
+    }
+
+    try {
+      // Call the signup API
+      const response = await signup({
+        name: formData.name,
+        email: formData.email,
+        password: formData.password
+      });
+
+      // Success - user is created
+      console.log('User created:', response.user);
+      alert('Account created successfully!');
+      
+      // Automatically log in the user
+      onLogin(response.user);
+    } catch (error) {
+      // Handle errors from the API
+      try {
+        const errorData = JSON.parse(error.message);
+        setErrors(errorData);
+      } catch {
+        // If error is not JSON, show generic error
+        setErrors({ general: 'An error occurred. Please try again.' });
+      }
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleSubmit = (e) => {
+  // Handle login form submission
+  const handleLogin = async (e) => {
     e.preventDefault();
-    console.log('Form submitted:', formData);
-    alert('Successfully registered! This is just a demo');
+    setErrors({});
+    setLoading(true);
+
+    try {
+      // Call the login API
+      const response = await login({
+        email: formData.email,
+        password: formData.password
+      });
+
+      // Success - user is logged in
+      console.log('User logged in:', response.user);
+      
+      // Call the onLogin callback with user data to navigate to home page
+      onLogin(response.user);
+    } catch (error) {
+      // Handle errors from the API
+      try {
+        const errorData = JSON.parse(error.message);
+        setErrors(errorData);
+      } catch {
+        // If error is not JSON, show generic error
+        setErrors({ general: 'Invalid email or password. Please try again.' });
+      }
+    } finally {
+      setLoading(false);
+    }
   };
 
   const LandingPage = () => (
@@ -302,229 +386,258 @@ const LoginPage = ({ onLogin }) => {
     </div>
   );
 
-  const Login = () => (
-    <div className="min-h-screen bg-gradient-to-br from-amber-50 via-orange-50 to-yellow-50 flex items-center justify-center p-6 relative overflow-hidden">
-      <div className="fixed inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-20 left-10 w-96 h-96 bg-yellow-200/30 rounded-full blur-3xl"></div>
-        <div className="absolute bottom-20 right-10 w-96 h-96 bg-orange-200/20 rounded-full blur-3xl"></div>
-      </div>
-
-      <div className="relative w-full max-w-md">
-        <div className="absolute inset-0 bg-gradient-to-br from-yellow-200/40 to-orange-200/40 rounded-[2.5rem] blur-2xl"></div>
-        <div className="relative bg-white/70 backdrop-blur-xl rounded-[2.5rem] shadow-2xl p-12 border border-amber-100/50">
-          <div className="text-center mb-10">
-            <div className="inline-block relative mb-6">
-              <div className="absolute inset-0 bg-gradient-to-br from-yellow-400 to-orange-400 rounded-3xl blur opacity-50"></div>
-              <div className="relative w-20 h-20 bg-gradient-to-br from-yellow-300 to-orange-300 rounded-3xl flex items-center justify-center shadow-xl">
-                <CheckCircle2 className="w-12 h-12 text-amber-900" strokeWidth={2.5} />
-              </div>
-            </div>
-            <h2 className="text-4xl font-black text-gray-900 mb-3">Welcome Back</h2>
-            <p className="text-gray-600 text-lg">Sign in to continue your journey</p>
-          </div>
-
-          <div className="space-y-6">
-            <div>
-              <label className="block text-gray-700 font-bold mb-3 text-sm">EMAIL ADDRESS</label>
-              <input 
-                type="email"
-                name="email"
-                value={formData.email}
-                onChange={handleInputChange}
-                placeholder="you@example.com"
-                className="w-full px-5 py-4 rounded-2xl border-2 border-amber-200/50 bg-white/50 focus:border-amber-300 focus:bg-white focus:outline-none transition-all text-gray-900 placeholder-gray-400"
-              />
-            </div>
-
-            <div>
-              <label className="block text-gray-700 font-bold mb-3 text-sm">PASSWORD</label>
-              <input 
-                type="password"
-                name="password"
-                value={formData.password}
-                onChange={handleInputChange}
-                placeholder="••••••••"
-                className="w-full px-5 py-4 rounded-2xl border-2 border-amber-200/50 bg-white/50 focus:border-amber-300 focus:bg-white focus:outline-none transition-all text-gray-900"
-              />
-            </div>
-
-            <div className="flex items-center justify-between">
-              <label className="flex items-center group cursor-pointer">
-                <input 
-                  type="checkbox" 
-                  name="remember"
-                  checked={formData.remember}
-                  onChange={handleInputChange}
-                  className="w-5 h-5 rounded-lg border-2 border-amber-300 text-amber-500 focus:ring-amber-300" 
-                />
-                <span className="ml-3 text-gray-700 font-medium group-hover:text-amber-900 transition">Remember me</span>
-              </label>
-              <a href="#" className="text-amber-900 hover:text-amber-700 font-bold text-sm transition">Forgot Password?</a>
-            </div>
-
-            <button 
-              onClick={onLogin}
-              //onClick={handleSubmit}
-              className="relative w-full group"
-            >
-              <div className="absolute inset-0 bg-gradient-to-r from-yellow-400 to-orange-400 rounded-2xl blur opacity-50 group-hover:opacity-75 transition"></div>
-              <div className="relative bg-gradient-to-r from-yellow-300 to-orange-300 text-amber-900 py-4 rounded-2xl font-bold text-lg shadow-xl hover:shadow-2xl transition-all transform hover:scale-[1.02]">
-                Sign In
-              </div>
-            </button>
-          </div>
-
-          <div className="mt-8 text-center">
-            <p className="text-gray-600 font-medium">
-              Don't have an account?{' '}
-              <button 
-                onClick={() => setCurrentPage('signup')}
-                className="text-amber-900 hover:text-amber-700 font-bold transition"
-              >
-                Create Account
-              </button>
-            </p>
-          </div>
-
-          <button 
-            onClick={() => setCurrentPage('landing')}
-            className="mt-8 text-gray-500 hover:text-gray-700 font-semibold text-sm flex items-center justify-center w-full transition group"
-          >
-            <ArrowRight className="w-4 h-4 mr-2 rotate-180 group-hover:-translate-x-1 transition-transform" />
-            Back to Home
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-
-  const SignupPage = () => (
-    <div className="min-h-screen bg-gradient-to-br from-amber-50 via-orange-50 to-yellow-50 flex items-center justify-center p-6 relative overflow-hidden">
-      <div className="fixed inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-20 right-10 w-96 h-96 bg-yellow-200/30 rounded-full blur-3xl"></div>
-        <div className="absolute bottom-20 left-10 w-96 h-96 bg-orange-200/20 rounded-full blur-3xl"></div>
-      </div>
-
-      <div className="relative w-full max-w-md">
-        <div className="absolute inset-0 bg-gradient-to-br from-yellow-200/40 to-orange-200/40 rounded-[2.5rem] blur-2xl"></div>
-        <div className="relative bg-white/70 backdrop-blur-xl rounded-[2.5rem] shadow-2xl p-12 border border-amber-100/50">
-          <div className="text-center mb-10">
-            <div className="inline-block relative mb-6">
-              <div className="absolute inset-0 bg-gradient-to-br from-yellow-400 to-orange-400 rounded-3xl blur opacity-50"></div>
-              <div className="relative w-20 h-20 bg-gradient-to-br from-yellow-300 to-orange-300 rounded-3xl flex items-center justify-center shadow-xl">
-                <CheckCircle2 className="w-12 h-12 text-amber-900" strokeWidth={2.5} />
-              </div>
-            </div>
-            <h2 className="text-4xl font-black text-gray-900 mb-3">Create Account</h2>
-            <p className="text-gray-600 text-lg">Start your productivity journey</p>
-          </div>
-
-          <div className="space-y-5">
-            <div>
-              <label className="block text-gray-700 font-bold mb-3 text-sm">FULL NAME</label>
-              <input 
-                type="text"
-                name="name"
-                value={formData.name}
-                onChange={handleInputChange}
-                placeholder="John Doe"
-                className="w-full px-5 py-4 rounded-2xl border-2 border-amber-200/50 bg-white/50 focus:border-amber-300 focus:bg-white focus:outline-none transition-all text-gray-900 placeholder-gray-400"
-              />
-            </div>
-
-            <div>
-              <label className="block text-gray-700 font-bold mb-3 text-sm">EMAIL ADDRESS</label>
-              <input 
-                type="email"
-                name="email"
-                value={formData.email}
-                onChange={handleInputChange}
-                placeholder="you@example.com"
-                className="w-full px-5 py-4 rounded-2xl border-2 border-amber-200/50 bg-white/50 focus:border-amber-300 focus:bg-white focus:outline-none transition-all text-gray-900 placeholder-gray-400"
-              />
-            </div>
-
-            <div>
-              <label className="block text-gray-700 font-bold mb-3 text-sm">PASSWORD</label>
-              <input 
-                type="password"
-                name="password"
-                value={formData.password}
-                onChange={handleInputChange}
-                placeholder="••••••••"
-                className="w-full px-5 py-4 rounded-2xl border-2 border-amber-200/50 bg-white/50 focus:border-amber-300 focus:bg-white focus:outline-none transition-all text-gray-900"
-              />
-            </div>
-
-            <div>
-              <label className="block text-gray-700 font-bold mb-3 text-sm">CONFIRM PASSWORD</label>
-              <input 
-                type="password"
-                name="confirmPassword"
-                value={formData.confirmPassword}
-                onChange={handleInputChange}
-                placeholder="••••••••"
-                className="w-full px-5 py-4 rounded-2xl border-2 border-amber-200/50 bg-white/50 focus:border-amber-300 focus:bg-white focus:outline-none transition-all text-gray-900"
-              />
-            </div>
-
-            <label className="flex items-start group cursor-pointer">
-              <input 
-                type="checkbox" 
-                name="agree"
-                checked={formData.agree}
-                onChange={handleInputChange}
-                className="w-5 h-5 rounded-lg border-2 border-amber-300 text-amber-500 focus:ring-amber-300 mt-0.5" 
-              />
-              <span className="ml-3 text-gray-600 text-sm leading-relaxed">
-                I agree to the{' '}
-                <a href="#" className="text-amber-900 hover:text-amber-700 font-bold">Terms & Conditions</a>
-                {' '}and{' '}
-                <a href="#" className="text-amber-900 hover:text-amber-700 font-bold">Privacy Policy</a>
-              </span>
-            </label>
-
-            <button 
-              //onClick={handleSubmit}
-              onClick={onLogin}
-              className="relative w-full group"
-            >
-              <div className="absolute inset-0 bg-gradient-to-r from-yellow-400 to-orange-400 rounded-2xl blur opacity-50 group-hover:opacity-75 transition"></div>
-              <div className="relative bg-gradient-to-r from-yellow-300 to-orange-300 text-amber-900 py-4 rounded-2xl font-bold text-lg shadow-xl hover:shadow-2xl transition-all transform hover:scale-[1.02]">
-                Create Account
-              </div>
-            </button>
-          </div>
-
-          <div className="mt-8 text-center">
-            <p className="text-gray-600 font-medium">
-              Already have an account?{' '}
-              <button 
-                onClick={() => setCurrentPage('login')}
-                className="text-amber-900 hover:text-amber-700 font-bold transition"
-              >
-                Sign In
-              </button>
-            </p>
-          </div>
-
-          <button 
-            onClick={() => setCurrentPage('landing')}
-            className="mt-8 text-gray-500 hover:text-gray-700 font-semibold text-sm flex items-center justify-center w-full transition group"
-          >
-            <ArrowRight className="w-4 h-4 mr-2 rotate-180 group-hover:-translate-x-1 transition-transform" />
-            Back to Home
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-
   return (
     <>
       {currentPage === 'landing' && <LandingPage />}
-      {currentPage === 'login' && <Login />}
-      {currentPage === 'signup' && <SignupPage />}
+      {currentPage === 'login' && (
+        <div className="min-h-screen bg-gradient-to-br from-amber-50 via-orange-50 to-yellow-50 flex items-center justify-center p-6 relative overflow-hidden">
+          <div className="fixed inset-0 overflow-hidden pointer-events-none">
+            <div className="absolute top-20 left-10 w-96 h-96 bg-yellow-200/30 rounded-full blur-3xl"></div>
+            <div className="absolute bottom-20 right-10 w-96 h-96 bg-orange-200/20 rounded-full blur-3xl"></div>
+          </div>
+
+          <div className="relative w-full max-w-md">
+            <div className="absolute inset-0 bg-gradient-to-br from-yellow-200/40 to-orange-200/40 rounded-[2.5rem] blur-2xl"></div>
+            <div className="relative bg-white/70 backdrop-blur-xl rounded-[2.5rem] shadow-2xl p-12 border border-amber-100/50">
+              <div className="text-center mb-10">
+                <div className="inline-block relative mb-6">
+                  <div className="absolute inset-0 bg-gradient-to-br from-yellow-400 to-orange-400 rounded-3xl blur opacity-50"></div>
+                  <div className="relative w-20 h-20 bg-gradient-to-br from-yellow-300 to-orange-300 rounded-3xl flex items-center justify-center shadow-xl">
+                    <CheckCircle2 className="w-12 h-12 text-amber-900" strokeWidth={2.5} />
+                  </div>
+                </div>
+                <h2 className="text-4xl font-black text-gray-900 mb-3">Welcome Back</h2>
+                <p className="text-gray-600 text-lg">Sign in to continue your journey</p>
+              </div>
+
+              <form onSubmit={handleLogin} className="space-y-6">
+                <div>
+                  <label className="block text-gray-700 font-bold mb-3 text-sm">EMAIL ADDRESS</label>
+                  <input 
+                    type="email"
+                    name="email"
+                    value={formData.email}
+                    onChange={handleInputChange}
+                    placeholder="you@example.com"
+                    className="w-full px-5 py-4 rounded-2xl border-2 border-amber-200/50 bg-white/50 focus:border-amber-300 focus:bg-white focus:outline-none transition-all text-gray-900 placeholder-gray-400"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-gray-700 font-bold mb-3 text-sm">PASSWORD</label>
+                  <input 
+                    type="password"
+                    name="password"
+                    value={formData.password}
+                    onChange={handleInputChange}
+                    placeholder="••••••••"
+                    className="w-full px-5 py-4 rounded-2xl border-2 border-amber-200/50 bg-white/50 focus:border-amber-300 focus:bg-white focus:outline-none transition-all text-gray-900"
+                  />
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <label className="flex items-center group cursor-pointer">
+                    <input 
+                      type="checkbox" 
+                      name="remember"
+                      checked={formData.remember}
+                      onChange={handleInputChange}
+                      className="w-5 h-5 rounded-lg border-2 border-amber-300 text-amber-500 focus:ring-amber-300" 
+                    />
+                    <span className="ml-3 text-gray-700 font-medium group-hover:text-amber-900 transition">Remember me</span>
+                  </label>
+                  <a href="#" className="text-amber-900 hover:text-amber-700 font-bold text-sm transition">Forgot Password?</a>
+                </div>
+
+                {errors.general && (
+                  <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-lg mb-4">
+                    {errors.general}
+                  </div>
+                )}
+                {errors.email && (
+                  <div className="text-red-600 text-sm mb-2">{errors.email}</div>
+                )}
+                {errors.password && (
+                  <div className="text-red-600 text-sm mb-2">{errors.password}</div>
+                )}
+
+                <button 
+                  type="submit"
+                  disabled={loading}
+                  className="relative w-full group disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <div className="absolute inset-0 bg-gradient-to-r from-yellow-400 to-orange-400 rounded-2xl blur opacity-50 group-hover:opacity-75 transition"></div>
+                  <div className="relative bg-gradient-to-r from-yellow-300 to-orange-300 text-amber-900 py-4 rounded-2xl font-bold text-lg shadow-xl hover:shadow-2xl transition-all transform hover:scale-[1.02]">
+                    {loading ? 'Signing In...' : 'Sign In'}
+                  </div>
+                </button>
+              </form>
+
+              <div className="mt-8 text-center">
+                <p className="text-gray-600 font-medium">
+                  Don't have an account?{' '}
+                  <button 
+                    onClick={() => setCurrentPage('signup')}
+                    className="text-amber-900 hover:text-amber-700 font-bold transition"
+                  >
+                    Create Account
+                  </button>
+                </p>
+              </div>
+
+              <button 
+                onClick={() => setCurrentPage('landing')}
+                className="mt-8 text-gray-500 hover:text-gray-700 font-semibold text-sm flex items-center justify-center w-full transition group"
+              >
+                <ArrowRight className="w-4 h-4 mr-2 rotate-180 group-hover:-translate-x-1 transition-transform" />
+                Back to Home
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {currentPage === 'signup' && (
+        <div className="min-h-screen bg-gradient-to-br from-amber-50 via-orange-50 to-yellow-50 flex items-center justify-center p-6 relative overflow-hidden">
+          <div className="fixed inset-0 overflow-hidden pointer-events-none">
+            <div className="absolute top-20 right-10 w-96 h-96 bg-yellow-200/30 rounded-full blur-3xl"></div>
+            <div className="absolute bottom-20 left-10 w-96 h-96 bg-orange-200/20 rounded-full blur-3xl"></div>
+          </div>
+
+          <div className="relative w-full max-w-md">
+            <div className="absolute inset-0 bg-gradient-to-br from-yellow-200/40 to-orange-200/40 rounded-[2.5rem] blur-2xl"></div>
+            <div className="relative bg-white/70 backdrop-blur-xl rounded-[2.5rem] shadow-2xl p-12 border border-amber-100/50">
+              <div className="text-center mb-10">
+                <div className="inline-block relative mb-6">
+                  <div className="absolute inset-0 bg-gradient-to-br from-yellow-400 to-orange-400 rounded-3xl blur opacity-50"></div>
+                  <div className="relative w-20 h-20 bg-gradient-to-br from-yellow-300 to-orange-300 rounded-3xl flex items-center justify-center shadow-xl">
+                    <CheckCircle2 className="w-12 h-12 text-amber-900" strokeWidth={2.5} />
+                  </div>
+                </div>
+                <h2 className="text-4xl font-black text-gray-900 mb-3">Create Account</h2>
+                <p className="text-gray-600 text-lg">Start your productivity journey</p>
+              </div>
+
+              <form onSubmit={handleSignup} className="space-y-5">
+                <div>
+                  <label className="block text-gray-700 font-bold mb-3 text-sm">FULL NAME</label>
+                  <input 
+                    type="text"
+                    name="name"
+                    value={formData.name}
+                    onChange={handleInputChange}
+                    placeholder="John Doe"
+                    className="w-full px-5 py-4 rounded-2xl border-2 border-amber-200/50 bg-white/50 focus:border-amber-300 focus:bg-white focus:outline-none transition-all text-gray-900 placeholder-gray-400"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-gray-700 font-bold mb-3 text-sm">EMAIL ADDRESS</label>
+                  <input 
+                    type="email"
+                    name="email"
+                    value={formData.email}
+                    onChange={handleInputChange}
+                    placeholder="you@example.com"
+                    className="w-full px-5 py-4 rounded-2xl border-2 border-amber-200/50 bg-white/50 focus:border-amber-300 focus:bg-white focus:outline-none transition-all text-gray-900 placeholder-gray-400"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-gray-700 font-bold mb-3 text-sm">PASSWORD</label>
+                  <input 
+                    type="password"
+                    name="password"
+                    value={formData.password}
+                    onChange={handleInputChange}
+                    placeholder="••••••••"
+                    className="w-full px-5 py-4 rounded-2xl border-2 border-amber-200/50 bg-white/50 focus:border-amber-300 focus:bg-white focus:outline-none transition-all text-gray-900"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-gray-700 font-bold mb-3 text-sm">CONFIRM PASSWORD</label>
+                  <input 
+                    type="password"
+                    name="confirmPassword"
+                    value={formData.confirmPassword}
+                    onChange={handleInputChange}
+                    placeholder="••••••••"
+                    className="w-full px-5 py-4 rounded-2xl border-2 border-amber-200/50 bg-white/50 focus:border-amber-300 focus:bg-white focus:outline-none transition-all text-gray-900"
+                  />
+                </div>
+
+                <label className="flex items-start group cursor-pointer">
+                  <input 
+                    type="checkbox" 
+                    name="agree"
+                    checked={formData.agree}
+                    onChange={handleInputChange}
+                    className="w-5 h-5 rounded-lg border-2 border-amber-300 text-amber-500 focus:ring-amber-300 mt-0.5" 
+                  />
+                  <span className="ml-3 text-gray-600 text-sm leading-relaxed">
+                    I agree to the{' '}
+                    <a href="#" className="text-amber-900 hover:text-amber-700 font-bold">Terms & Conditions</a>
+                    {' '}and{' '}
+                    <a href="#" className="text-amber-900 hover:text-amber-700 font-bold">Privacy Policy</a>
+                  </span>
+                </label>
+
+                {errors.general && (
+                  <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-lg mb-4">
+                    {errors.general}
+                  </div>
+                )}
+                {errors.name && (
+                  <div className="text-red-600 text-sm mb-2">{errors.name}</div>
+                )}
+                {errors.email && (
+                  <div className="text-red-600 text-sm mb-2">{errors.email}</div>
+                )}
+                {errors.password && (
+                  <div className="text-red-600 text-sm mb-2">{errors.password}</div>
+                )}
+                {errors.confirmPassword && (
+                  <div className="text-red-600 text-sm mb-2">{errors.confirmPassword}</div>
+                )}
+                {errors.agree && (
+                  <div className="text-red-600 text-sm mb-2">{errors.agree}</div>
+                )}
+
+                <button 
+                  type="submit"
+                  disabled={loading}
+                  className="relative w-full group disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <div className="absolute inset-0 bg-gradient-to-r from-yellow-400 to-orange-400 rounded-2xl blur opacity-50 group-hover:opacity-75 transition"></div>
+                  <div className="relative bg-gradient-to-r from-yellow-300 to-orange-300 text-amber-900 py-4 rounded-2xl font-bold text-lg shadow-xl hover:shadow-2xl transition-all transform hover:scale-[1.02]">
+                    {loading ? 'Creating Account...' : 'Create Account'}
+                  </div>
+                </button>
+              </form>
+
+              <div className="mt-8 text-center">
+                <p className="text-gray-600 font-medium">
+                  Already have an account?{' '}
+                  <button 
+                    onClick={() => setCurrentPage('login')}
+                    className="text-amber-900 hover:text-amber-700 font-bold transition"
+                  >
+                    Sign In
+                  </button>
+                </p>
+              </div>
+
+              <button 
+                onClick={() => setCurrentPage('landing')}
+                className="mt-8 text-gray-500 hover:text-gray-700 font-semibold text-sm flex items-center justify-center w-full transition group"
+              >
+                <ArrowRight className="w-4 h-4 mr-2 rotate-180 group-hover:-translate-x-1 transition-transform" />
+                Back to Home
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 };

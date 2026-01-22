@@ -4,7 +4,6 @@ const taskSchema = new mongoose.Schema({
   title: {
     type: String,
     required: [true, "please enter a title"],
-    minLength: [3, "minimum title length is 3 characters"],
   },
   duree: {
     type: Number,
