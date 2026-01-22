@@ -62,7 +62,7 @@ const PertChart = ({ tasks }) => {
 
   return (
     <div>
-      <h2 className="text-2xl font-bold mb-6">PERT (Méthode Enseignant)</h2>
+      <h2 className="text-2xl font-bold mb-6">PERT </h2>
 
       {/* ===== DIAGRAMME ===== */}
       <div ref={containerRef} className="mb-8 p-6 bg-white rounded-xl border relative">
