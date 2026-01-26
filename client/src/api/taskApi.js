@@ -52,7 +52,7 @@ export const createTask = async (taskData) => {
  */
 export const getTasks = async (projectId) => {
   try {
-    const response = await fetch(`${API_BASE_URL}/tasks/${projectId}`, {
+    const response = await fetch(`${API_BASE_URL}/tasks/project/${projectId}`, {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',

@@ -21,11 +21,11 @@ const TaskForm = ({ task, projectTasks, onSubmit, onCancel }) => {
   const handleSubmit = (e) => {
     e.preventDefault();
     if (!formData.name.trim()) {
-      alert("Task name is required");
+      alert("Please enter task title");
       return;
     }
     if (formData.duration < 1) {
-      alert("Duration must be at least 1");
+      alert("Duration must be at least 1 day");
       return;
     }
     onSubmit(formData);
@@ -58,42 +58,88 @@ const TaskForm = ({ task, projectTasks, onSubmit, onCancel }) => {
     });
   };
 
-  // Get available tasks for predecessors (exclude current task)
-  const availableTasks = projectTasks.filter(t => !task || t.id !== task.id);
+  // Function to check if adding a predecessor would create a cycle
+  const wouldCreateCycle = (candidateId, currentTaskId, currentPredecessors) => {
+    // Build a dependency graph
+    const graph = {};
+    
+    // Add all existing task dependencies
+    projectTasks.forEach(t => {
+      graph[t.id] = t.predecessors || [];
+    });
+    
+    // Simulate adding the new dependency
+    graph[currentTaskId] = [...currentPredecessors, candidateId];
+    
+    // DFS to detect cycle starting from candidateId
+    const visited = new Set();
+    const recStack = new Set();
+    
+    const hasCycle = (nodeId) => {
+      if (!graph[nodeId]) return false;
+      
+      visited.add(nodeId);
+      recStack.add(nodeId);
+      
+      for (const predId of graph[nodeId]) {
+        if (!visited.has(predId)) {
+          if (hasCycle(predId)) return true;
+        } else if (recStack.has(predId)) {
+          return true; // Cycle detected
+        }
+      }
+      
+      recStack.delete(nodeId);
+      return false;
+    };
+    
+    // Check if adding this dependency creates a cycle
+    return hasCycle(currentTaskId);
+  };
+
+  // Get available tasks for predecessors (exclude current task and tasks that would create cycles)
+  const currentTaskId = task?.id || 'new-task';
+  const availableTasks = projectTasks.filter(t => {
+    // Exclude current task
+    if (task && t.id === task.id) return false;
+    
+    // Check if this task would create a cycle
+    return !wouldCreateCycle(t.id, currentTaskId, formData.predecessors);
+  });
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
-        <h2 className="text-3xl font-black text-gray-900">
+      <div className="flex items-center justify-between mb-6 border-b border-gray-100 pb-4">
+        <h2 className="text-xl font-bold text-gray-800">
           {task ? "Edit Task" : "New Task"}
         </h2>
         <button
           onClick={onCancel}
-          className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition"
+          className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-50 rounded-md transition"
         >
           <X className="w-5 h-5" />
         </button>
       </div>
 
-      <form onSubmit={handleSubmit} className="space-y-6">
+      <form onSubmit={handleSubmit} className="space-y-5">
         <div>
-          <label className="block text-gray-700 font-bold mb-3 text-sm">
-            TASK NAME *
+          <label className="block text-gray-700 font-medium mb-1.5 text-sm">
+            Task name *
           </label>
           <input
             type="text"
             name="name"
             value={formData.name}
             onChange={handleChange}
-            placeholder="Enter task name"
-            className="w-full px-5 py-4 rounded-2xl border-2 border-amber-200/50 bg-white/50 focus:border-amber-300 focus:bg-white focus:outline-none transition-all text-gray-900 placeholder-gray-400"
+            placeholder="Ex: Database design"
+            className="w-full px-4 py-2.5 rounded-lg border border-gray-300 focus:border-amber-500 focus:ring-2 focus:ring-amber-200 focus:outline-none transition-all text-gray-900 placeholder-gray-400 text-sm"
             required
           />
         </div>
 
         <div>
-          <label className="block text-gray-700 font-bold mb-3 text-sm">
-            DURATION (days) *
+          <label className="block text-gray-700 font-medium mb-1.5 text-sm">
+            Duration (days) *
           </label>
           <input
             type="number"
@@ -101,33 +147,35 @@ const TaskForm = ({ task, projectTasks, onSubmit, onCancel }) => {
             value={formData.duration}
             onChange={handleChange}
             min="1"
-            placeholder="Enter duration in days"
-            className="w-full px-5 py-4 rounded-2xl border-2 border-amber-200/50 bg-white/50 focus:border-amber-300 focus:bg-white focus:outline-none transition-all text-gray-900 placeholder-gray-400"
+            placeholder="Ex: 5"
+            className="w-full px-4 py-2.5 rounded-lg border border-gray-300 focus:border-amber-500 focus:ring-2 focus:ring-amber-200 focus:outline-none transition-all text-gray-900 placeholder-gray-400 text-sm"
             required
           />
         </div>
 
         <div>
-          <label className="block text-gray-700 font-bold mb-3 text-sm">
-            PREDECESSORS
+          <label className="block text-gray-700 font-medium mb-1.5 text-sm">
+            Predecessors
           </label>
           {availableTasks.length === 0 ? (
-            <p className="text-gray-500 text-sm py-4">No other tasks available</p>
+            <div className="text-gray-400 text-sm py-3 px-4 bg-gray-50 rounded-lg border border-dashed border-gray-200 text-center">
+                No tasks available
+            </div>
           ) : (
-            <div className="space-y-2 max-h-48 overflow-y-auto p-4 bg-gray-50 rounded-2xl border-2 border-amber-200/50">
+            <div className="space-y-1 max-h-48 overflow-y-auto p-2 bg-gray-50 rounded-lg border border-gray-200">
               {availableTasks.map(t => (
                 <label
                   key={t.id}
-                  className="flex items-center group cursor-pointer p-3 hover:bg-white rounded-xl transition"
+                  className="flex items-center cursor-pointer p-2 hover:bg-white rounded-md transition border border-transparent hover:border-gray-100"
                 >
                   <input
                     type="checkbox"
                     checked={formData.predecessors.includes(t.id)}
                     onChange={(e) => handlePredecessorChange(t.id, e.target.checked)}
-                    className="w-5 h-5 rounded-lg border-2 border-amber-300 text-amber-500 focus:ring-amber-300"
+                    className="w-4 h-4 rounded text-amber-500 focus:ring-amber-400 border-gray-300"
                   />
-                  <span className="ml-3 text-gray-700 font-medium group-hover:text-amber-900 transition">
-                    {t.name} ({t.duration} days)
+                  <span className="ml-2.5 text-gray-700 text-sm">
+                    {t.name} <span className="text-gray-400 text-xs">({t.duration}j)</span>
                   </span>
                 </label>
               ))}
@@ -135,22 +183,19 @@ const TaskForm = ({ task, projectTasks, onSubmit, onCancel }) => {
           )}
         </div>
 
-        <div className="flex gap-4 pt-4">
+        <div className="flex gap-3 pt-4 border-t border-gray-100 mt-2">
           <button
             type="button"
             onClick={onCancel}
-            className="flex-1 bg-gray-100 text-gray-700 py-4 rounded-2xl font-bold hover:bg-gray-200 transition-all"
+            className="flex-1 px-4 py-2.5 rounded-lg text-gray-700 bg-white border border-gray-300 font-medium hover:bg-gray-50 transition-colors text-sm"
           >
             Cancel
           </button>
           <button
             type="submit"
-            className="relative flex-1 group"
+            className="flex-1 px-4 py-2.5 rounded-lg text-white bg-amber-500 hover:bg-amber-600 font-medium shadow-sm transition-colors text-sm"
           >
-            <div className="absolute inset-0 bg-gradient-to-r from-yellow-400 to-orange-400 rounded-2xl blur opacity-50 group-hover:opacity-75 transition"></div>
-            <div className="relative bg-gradient-to-r from-yellow-300 to-orange-300 text-amber-900 py-4 rounded-2xl font-bold shadow-xl hover:shadow-2xl transition-all transform hover:scale-[1.02]">
-              {task ? "Update" : "Create"}
-            </div>
+            {task ? "Save" : "Save Task"}
           </button>
         </div>
       </form>

@@ -1,10 +1,13 @@
 import { useEffect, useState } from "react";
 import { getTasks, createTask, updateTask, deleteTask } from "../api/taskApi";
+import { updateProject, deleteProject } from "../api/projectApi";
 import TaskTable from "../components/TaskTable";
 import TaskForm from "../components/TaskForm";
 import GanttChart from "../components/GanttChart";
 import PertChart from "../components/PertChart";
-import { ArrowLeft, Plus, List, BarChart3, Network } from "lucide-react";
+import DataTable from "../components/DataTable";
+import Spinner from "../components/Spinner";
+import { ArrowLeft, Plus, List, BarChart3, Network, Table, Edit, Trash2 } from "lucide-react";
 
 const ProjectPage = ({ project, goBack }) => {
   const [tasks, setTasks] = useState([]);
@@ -12,6 +15,19 @@ const ProjectPage = ({ project, goBack }) => {
   const [showForm, setShowForm] = useState(false);
   const [editingTask, setEditingTask] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [showProjectActions, setShowProjectActions] = useState(false);
+  const [message, setMessage] = useState("");
+
+  useEffect(() => {
+    if (showForm) {
+      document.body.style.overflow = "hidden";
+    } else {
+      document.body.style.overflow = "unset";
+    }
+    return () => {
+      document.body.style.overflow = "unset";
+    };
+  }, [showForm]);
 
   const loadTasks = async () => {
     if (!project) {
@@ -32,17 +48,19 @@ const ProjectPage = ({ project, goBack }) => {
     try {
       const response = await getTasks(projectId);
       // Map backend fields to frontend format
-      const mappedTasks = response.tasks.map(task => ({
+      const tasksData = Array.isArray(response) ? response : (response.tasks || []);
+      const mappedTasks = tasksData.map(task => ({
         id: task._id || task.id,
         projectId: task.project || task.projectId,
         name: task.title,
-        duration: task.duree,
-        predecessors: task.predeceseur || []
+        duration: task.duree || task.duration,
+        status: task.status || 'pending',
+        priority: task.priority || 'medium',
+        predecessors: task.predeceseur || task.dependencies || []
       }));
       setTasks(mappedTasks);
     } catch (error) {
       console.error("Error loading tasks:", error);
-      alert("Failed to load tasks");
     } finally {
       setLoading(false);
     }
@@ -57,7 +75,14 @@ const ProjectPage = ({ project, goBack }) => {
 
   const handleCreate = async (taskData) => {
     if (!project) {
-      alert("No project selected");
+      setMessage("No project selected");
+      setTimeout(() => setMessage(""), 3000);
+      return;
+    }
+
+    if (!taskData.name || taskData.name.trim() === "") {
+      setMessage("Please enter task title");
+      setTimeout(() => setMessage(""), 3000);
       return;
     }
 
@@ -69,13 +94,18 @@ const ProjectPage = ({ project, goBack }) => {
         projectId: projectId,
         title: taskData.name,
         duree: taskData.duration,
+        status: taskData.status || 'pending',
+        priority: taskData.priority || 'medium',
         predeceseur: taskData.predecessors || []
       });
       await loadTasks();
       setShowForm(false);
+      setMessage("Task added successfully");
+      setTimeout(() => setMessage(""), 3000);
     } catch (error) {
       console.error("Error creating task:", error);
-      alert("Failed to create task");
+      setMessage(error.message || "Failed to create task");
+      setTimeout(() => setMessage(""), 3000);
     } finally {
       setLoading(false);
     }
@@ -87,14 +117,19 @@ const ProjectPage = ({ project, goBack }) => {
       await updateTask(id, {
         title: taskData.name,
         duree: taskData.duration,
+        status: taskData.status || 'pending',
+        priority: taskData.priority || 'medium',
         predeceseur: taskData.predecessors || []
       });
       await loadTasks();
       setEditingTask(null);
       setShowForm(false);
+      setMessage("Task updated successfully");
+      setTimeout(() => setMessage(""), 3000);
     } catch (error) {
       console.error("Error updating task:", error);
-      alert("Failed to update task");
+      setMessage(error.message || "Failed to update task");
+      setTimeout(() => setMessage(""), 3000);
     } finally {
       setLoading(false);
     }
@@ -108,9 +143,12 @@ const ProjectPage = ({ project, goBack }) => {
       setLoading(true);
       await deleteTask(id);
       await loadTasks();
+      setMessage("Task deleted successfully");
+      setTimeout(() => setMessage(""), 3000);
     } catch (error) {
       console.error("Error deleting task:", error);
-      alert("Failed to delete task");
+      setMessage("Failed to delete task");
+      setTimeout(() => setMessage(""), 3000);
     } finally {
       setLoading(false);
     }
@@ -129,7 +167,7 @@ const ProjectPage = ({ project, goBack }) => {
   if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-amber-50 via-orange-50 to-yellow-50 flex items-center justify-center">
-        <div className="text-2xl font-bold text-amber-900">Loading...</div>
+        <Spinner size="32" />
       </div>
     );
   }
@@ -150,85 +188,142 @@ const ProjectPage = ({ project, goBack }) => {
             <div>
               <h1 className="text-5xl font-black text-gray-900 mb-2">{project.name}</h1>
               <p className="text-gray-600 text-lg">{project.description || "No description"}</p>
-            </div>
-            {view === "tasks" && (
-              <button
-                onClick={() => setShowForm(true)}
-                className="relative group"
-              >
-                <div className="absolute inset-0 bg-gradient-to-r from-yellow-400 to-orange-400 rounded-full blur opacity-50 group-hover:opacity-75 transition"></div>
-                <div className="relative bg-gradient-to-r from-yellow-300 to-orange-300 text-amber-900 px-6 py-3 rounded-full font-bold shadow-lg hover:shadow-xl transition-all transform hover:scale-105 flex items-center gap-2">
-                  <Plus className="w-5 h-5" />
-                  Add Task
+              {message && (
+                <div className="mt-3 p-3 bg-green-100 border border-green-300 text-green-800 rounded-lg text-sm font-medium">
+                  {message}
                 </div>
+              )}
+            </div>
+            <div className="flex items-center gap-3">
+              {/* Project Action Buttons */}
+              <button
+                onClick={() => alert('Edit project functionality - redirecting to edit form')}
+                className="flex items-center gap-2 bg-white border border-gray-300 text-gray-700 px-4 py-2 rounded-lg font-bold hover:bg-gray-50 transition-all shadow-sm text-sm"
+                title="Edit Project"
+              >
+                <Edit className="w-4 h-4" />
+                Edit
               </button>
-            )}
+              <button
+                onClick={async () => {
+                  if (confirm('Are you sure you want to delete this project? All tasks will also be deleted.')) {
+                    try {
+                      await deleteProject(project.id || project._id);
+                      alert('Project deleted successfully');
+                      goBack();
+                    } catch (error) {
+                      console.error('Error deleting project:', error);
+                      alert('Failed to delete project');
+                    }
+                  }
+                }}
+                className="flex items-center gap-2 bg-white border border-red-300 text-red-600 px-4 py-2 rounded-lg font-bold hover:bg-red-50 transition-all shadow-sm text-sm"
+                title="Delete Project"
+              >
+                <Trash2 className="w-4 h-4" />
+                Delete Project
+              </button>
+              {view === "tasks" && (
+                <button
+                  onClick={() => setShowForm(true)}
+                  className="flex items-center gap-2 bg-amber-400 hover:bg-amber-500 text-amber-950 px-4 py-2 rounded-lg font-bold shadow-sm transition-all hover:shadow-md active:scale-95 border border-amber-400/50 text-sm"
+                >
+                  <Plus className="w-4 h-4" />
+                  Add New Task
+                </button>
+              )}
+            </div>
           </div>
         </div>
 
         {/* View Tabs */}
-        <div className="flex gap-4 mb-8 bg-white/60 backdrop-blur-sm rounded-2xl p-2 border border-amber-100/50 shadow-lg">
+        <div className="flex gap-2 mb-8 bg-amber-50/50 p-1.5 rounded-xl border border-amber-100 shadow-inner">
           <button
             onClick={() => setView("tasks")}
-            className={`flex-1 flex items-center justify-center gap-2 py-3 px-6 rounded-xl font-bold transition-all ${
+            className={`flex-1 flex items-center justify-center gap-2 py-2.5 px-4 rounded-lg text-sm font-bold transition-all duration-200 ${
               view === "tasks"
-                ? "bg-gradient-to-r from-yellow-300 to-orange-300 text-amber-900 shadow-lg"
-                : "text-gray-600 hover:text-amber-900 hover:bg-white/80"
+                ? "bg-white text-amber-900 shadow-sm ring-1 ring-amber-100/50"
+                : "text-amber-700/60 hover:text-amber-800 hover:bg-amber-100/50"
             }`}
           >
-            <List className="w-5 h-5" />
-            Tasks
+            <List className="w-4 h-4" />
+            Task List
           </button>
           <button
             onClick={() => setView("gantt")}
-            className={`flex-1 flex items-center justify-center gap-2 py-3 px-6 rounded-xl font-bold transition-all ${
+            className={`flex-1 flex items-center justify-center gap-2 py-2.5 px-4 rounded-lg text-sm font-bold transition-all duration-200 ${
               view === "gantt"
-                ? "bg-gradient-to-r from-yellow-300 to-orange-300 text-amber-900 shadow-lg"
-                : "text-gray-600 hover:text-amber-900 hover:bg-white/80"
+                ? "bg-white text-amber-900 shadow-sm ring-1 ring-amber-100/50"
+                : "text-amber-700/60 hover:text-amber-800 hover:bg-amber-100/50"
             }`}
           >
-            <BarChart3 className="w-5 h-5" />
+            <BarChart3 className="w-4 h-4" />
             Gantt Chart
           </button>
           <button
             onClick={() => setView("pert")}
-            className={`flex-1 flex items-center justify-center gap-2 py-3 px-6 rounded-xl font-bold transition-all ${
+            className={`flex-1 flex items-center justify-center gap-2 py-2.5 px-4 rounded-lg text-sm font-bold transition-all duration-200 ${
               view === "pert"
-                ? "bg-gradient-to-r from-yellow-300 to-orange-300 text-amber-900 shadow-lg"
-                : "text-gray-600 hover:text-amber-900 hover:bg-white/80"
+                ? "bg-white text-amber-900 shadow-sm ring-1 ring-amber-100/50"
+                : "text-amber-700/60 hover:text-amber-800 hover:bg-amber-100/50"
             }`}
           >
-            <Network className="w-5 h-5" />
+            <Network className="w-4 h-4" />
             PERT Chart
+          </button>
+          <button
+            onClick={() => setView("data")}
+            className={`flex-1 flex items-center justify-center gap-2 py-2.5 px-4 rounded-lg text-sm font-bold transition-all duration-200 ${
+              view === "data"
+                ? "bg-white text-amber-900 shadow-sm ring-1 ring-amber-100/50"
+                : "text-amber-700/60 hover:text-amber-800 hover:bg-amber-100/50"
+            }`}
+          >
+            <Table className="w-4 h-4" />
+            Data
           </button>
         </div>
 
         {/* Content */}
         <div className="bg-white/60 backdrop-blur-sm rounded-3xl p-8 border border-amber-100/50 shadow-xl">
           {view === "tasks" && (
-            <TaskTable
-              tasks={tasks}
-              onEdit={handleEdit}
-              onDelete={handleDelete}
-            />
+            tasks.length === 0 ? (
+              <div className="text-center py-12">
+                <div className="text-5xl mb-3 opacity-20">📝</div>
+                <p className="text-xl font-semibold text-gray-700 mb-3">No tasks in this project</p>
+                <button
+                  onClick={() => setShowForm(true)}
+                  className="inline-flex items-center gap-2 bg-amber-400 hover:bg-amber-500 text-amber-950 px-6 py-3 rounded-lg font-bold shadow-sm transition-all hover:shadow-md active:scale-95 border border-amber-400/50"
+                >
+                  <Plus className="w-5 h-5" />
+                  Add New Task
+                </button>
+              </div>
+            ) : (
+              <TaskTable
+                tasks={tasks}
+                onEdit={handleEdit}
+                onDelete={handleDelete}
+              />
+            )
           )}
           {view === "gantt" && <GanttChart tasks={tasks} />}
           {view === "pert" && <PertChart tasks={tasks} />}
+          {view === "data" && <DataTable tasks={tasks} />}
         </div>
 
         {/* Task Form Modal */}
         {showForm && (
-          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-            <div className="relative w-full max-w-md">
-              <div className="absolute inset-0 bg-gradient-to-br from-yellow-200/40 to-orange-200/40 rounded-[2.5rem] blur-2xl"></div>
-              <div className="relative bg-white/90 backdrop-blur-xl rounded-[2.5rem] shadow-2xl p-8 border border-amber-100/50">
-                <TaskForm
-                  task={editingTask}
-                  projectTasks={tasks}
-                  onSubmit={editingTask ? (data) => handleUpdate(editingTask.id || editingTask._id, data) : handleCreate}
-                  onCancel={handleFormClose}
-                />
-              </div>
+          <div className="fixed inset-0 bg-gray-900/30 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg border border-gray-100 overflow-hidden transform transition-all scale-95">
+                <div className="p-6">
+                  <TaskForm
+                    task={editingTask}
+                    projectTasks={tasks}
+                    onSubmit={editingTask ? (data) => handleUpdate(editingTask.id || editingTask._id, data) : handleCreate}
+                    onCancel={handleFormClose}
+                  />
+                </div>
             </div>
           </div>
         )}
