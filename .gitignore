@@ -1,0 +1,18 @@
+# Test reports
+tests/reports/
+server/tests/reports/
+client/tests/reports/
+
+# Screenshots
+tests/screenshots/
+client/tests/screenshots/
+
+# Test artifacts
+.cucumber/
+cucumber-report.html
+cucumber-report.json
+
+# Playwright
+.playwright/
+playwright-report/
+test-results/

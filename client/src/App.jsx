@@ -85,14 +85,12 @@ const ProjectPageWrapper = () => {
           }
         }
 
-        // If not in sessionStorage, fetch from API
-        const { getProjects } = await import('./api/projectApi');
-        const response = await getProjects(currentUser._id || currentUser.id);
-        const foundProject = response.projects.find(
-          p => (p._id === projectId || p.id === projectId)
-        );
-
-        if (foundProject) {
+        // If not in sessionStorage, fetch directly from API
+        const { getProjectById } = await import('./api/projectApi');
+        const response = await getProjectById(projectId);
+        
+        if (response && response.project) {
+          const foundProject = response.project;
           const mappedProject = {
             id: foundProject._id || foundProject.id,
             _id: foundProject._id || foundProject.id,
@@ -102,11 +100,13 @@ const ProjectPageWrapper = () => {
           setProject(mappedProject);
           sessionStorage.setItem('selectedProject', JSON.stringify(mappedProject));
         } else {
+          console.error('Project not found');
           navigate("/home");
         }
       } catch (error) {
         console.error('Error loading project:', error);
-        navigate("/home");
+        // Don't navigate away on error - might be a temporary network issue
+        setLoading(false);
       } finally {
         setLoading(false);
       }

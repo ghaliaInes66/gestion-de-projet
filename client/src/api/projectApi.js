@@ -51,7 +51,7 @@ export const createProject = async (projectData) => {
  */
 export const getProjects = async (userId) => {
   try {
-    const response = await fetch(`${API_BASE_URL}/projects/${userId}`, {
+    const response = await fetch(`${API_BASE_URL}/projects/user/${userId}`, {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
@@ -129,3 +129,29 @@ export const deleteProject = async (projectId) => {
   }
 };
 
+/**
+ * Get a single project by ID
+ * @param {string} projectId - Project ID
+ * @returns {Promise<Object>} - Returns project object
+ */
+export const getProjectById = async (projectId) => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/projects/${projectId}`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.error || 'Failed to fetch project');
+    }
+
+    return data;
+  } catch (error) {
+    console.error('Get project by ID error:', error);
+    throw error;
+  }
+};

@@ -61,7 +61,7 @@ const backwardPass = (tasks, forwardData, projectDuration) => {
   return result;
 };
 
-// -------- Marges --------
+// -------- Slacks --------
 const calculateMargins = (tasks, data) => {
   const getSuccessors = (id) =>
     tasks.filter(t => t.predecessors && t.predecessors.includes(id));
@@ -69,7 +69,7 @@ const calculateMargins = (tasks, data) => {
   tasks.forEach(task => {
     const d = data[task.id];
 
-    const MT = d.LS - d.ES; // Marge Totale
+    const MT = d.LS - d.ES; // Total Slack
 
     const successors = getSuccessors(task.id);
     let ML;
@@ -105,7 +105,51 @@ export const calculatePERT = (tasks) => {
 
 export const getProjectDuration = (pert) => pert.projectDuration;
 
-export const getCriticalPath = (pert) =>
-  Object.values(pert.tasks)
-    .filter(t => t.isCritical)
-    .map(t => t.name);
+export const getCriticalPath = (pert) => {
+  if (!pert || !pert.tasks) return [];
+  const tasks = Object.values(pert.tasks);
+  
+  // Find all critical tasks (MT = 0)
+  const criticalTasks = tasks.filter(t => t.isCritical);
+  if (criticalTasks.length === 0) return [];
+
+  // Build adjacency graph for critical tasks only
+  const criticalIds = new Set(criticalTasks.map(t => t.id));
+  const adjList = {};
+  
+  criticalTasks.forEach(t => {
+    adjList[t.id] = [];
+    // Find successors that are also critical
+    const criticalSuccessors = tasks.filter(succ => 
+      succ.predecessors?.includes(t.id) && criticalIds.has(succ.id)
+    );
+    adjList[t.id] = criticalSuccessors.map(s => s.id);
+  });
+
+  // Find start nodes (critical tasks with no critical predecessors)
+  const startNodes = criticalTasks.filter(t => {
+    const critPreds = t.predecessors?.filter(p => criticalIds.has(p)) || [];
+    return critPreds.length === 0;
+  });
+
+  // DFS to find all complete paths from start to end
+  const allPaths = [];
+  
+  const dfs = (currentId, path) => {
+    const nextNodes = adjList[currentId];
+    if (!nextNodes || nextNodes.length === 0) {
+      // End node - save path
+      allPaths.push([...path]);
+      return;
+    }
+    nextNodes.forEach(nextId => {
+      dfs(nextId, [...path, nextId]);
+    });
+  };
+
+  startNodes.forEach(node => {
+    dfs(node.id, [node.id]);
+  });
+
+  return allPaths; // Returns array of paths (each path is array of task IDs)
+};
